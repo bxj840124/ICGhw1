@@ -1,0 +1,1847 @@
+<html>
+
+<head>
+	<meta charset="utf-8"> 
+    <title>ICG WebGL &mdash; HW1</title>
+    <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+    <script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+    <script type="text/javascript" src="webgl-utils.js"></script>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+	<link rel="stylesheet" type="text/css" href="style.css">
+	<script id="gouraud-v" type="vertex">
+	    attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec2 aTextureCoord;
+
+	    uniform mat4 uMVMatrix;
+	    uniform mat4 uPMatrix;
+	    uniform mat3 uNMatrix;
+
+	    varying vec2 vTextureCoord;
+	    varying vec3 lightWeighting;
+	    
+	    uniform float uMaterialShininess;
+
+	    uniform vec3 uAmbientColor;
+	    uniform vec3 uPointLightingLocation;
+	    uniform vec3 uPointLightingSpecularColor;
+	    uniform vec3 uPointLightingDiffuseColor;
+	    uniform vec3 uPointLightingLocation2;
+	    uniform vec3 uPointLightingSpecularColor2;
+	    uniform vec3 uPointLightingDiffuseColor2;
+
+	    void main(void) {
+	        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+
+	        vec3 lightDirection = normalize(uPointLightingLocation - (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+	        vec3 lightDirection2 = normalize(uPointLightingLocation2 - (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+
+	        vec3 normal = normalize(uNMatrix * aVertexNormal);
+	        vec3 eyeDirection = normalize(-(uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+	        vec3 reflectionDirection = reflect(-lightDirection, normal);
+	        vec3 reflectionDirection2 = reflect(-lightDirection2, normal);
+
+	        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess) + pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+	        float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0) + max(dot(normal, lightDirection2), 0.0);
+
+	        lightWeighting = uAmbientColor
+	            + uPointLightingSpecularColor * specularLightWeighting
+	            + uPointLightingDiffuseColor * diffuseLightWeighting;
+
+	        vTextureCoord = aTextureCoord;
+	    }
+	</script>
+
+	<script id="gouraud-f" type="fragment">
+	    precision mediump float;
+
+	    uniform sampler2D uSampler;
+
+	    varying vec2 vTextureCoord;
+	    varying vec3 lightWeighting;
+
+	    void main(void) {
+	        vec4 fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+	        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a); 
+	    }
+	</script>
+
+	<script id="flat-v" type="vertex">
+	    attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec2 aTextureCoord;
+
+	    uniform mat4 uMVMatrix;
+	    uniform mat4 uPMatrix;
+	    uniform mat3 uNMatrix;
+
+	    varying vec3 fragVertexEc;
+	    varying vec2 vTextureCoord;
+
+	    void main(void) {
+	        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+	        fragVertexEc = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
+	        vec3 N = aVertexNormal;
+	        vTextureCoord = aTextureCoord;
+	    }
+	</script>
+
+	<script id="flat-f" type="fragment">
+	    #extension GL_OES_standard_derivatives : enable
+
+	    precision mediump float;
+
+	    varying vec3 fragVertexEc;
+	    varying vec2 vTextureCoord;
+
+	    uniform float uMaterialShininess;
+	    uniform sampler2D uSampler;
+
+	    uniform vec3 uAmbientColor;
+	    uniform vec3 uPointLightingLocation;
+	    uniform vec3 uPointLightingSpecularColor;
+	    uniform vec3 uPointLightingDiffuseColor;
+	    uniform vec3 uPointLightingLocation2;
+	    uniform vec3 uPointLightingSpecularColor2;
+	    uniform vec3 uPointLightingDiffuseColor2;
+
+	    void main(void) {
+	        vec3 X = dFdx(fragVertexEc);
+	        vec3 Y = dFdy(fragVertexEc);
+	        vec3 normal = normalize(cross(X, Y));
+
+	        vec3 lightDirection = normalize(uPointLightingLocation - fragVertexEc);
+	        vec3 lightDirection2 = normalize(uPointLightingLocation2 - fragVertexEc);
+	        vec3 eyeDirection = normalize(-fragVertexEc);
+	        vec3 reflectionDirection = reflect(-lightDirection, normal);
+	        vec3 reflectionDirection2 = reflect(-lightDirection2, normal);
+
+	        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess) + pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+	        float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0) + max(dot(normal, lightDirection2), 0.0);
+	        vec3 lightWeighting = uAmbientColor
+	            + uPointLightingSpecularColor * specularLightWeighting
+	            + uPointLightingDiffuseColor * diffuseLightWeighting;       
+
+	        vec4 fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+
+	        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);
+	    }
+	</script>
+
+	<script id="phong-v" type="vertex">
+	    attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec2 aTextureCoord;
+
+	    uniform mat4 uMVMatrix;
+	    uniform mat4 uPMatrix;
+
+	    varying vec3 vPosition;
+	    varying vec3 N;
+	    varying mat4 vMVMatrix;
+	    varying mat4 vPMatrix;
+	    varying vec2 vTextureCoord;
+
+	    void main(void) {
+	        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+	        
+	        vPosition = aVertexPosition;
+	        N = aVertexNormal;
+	        vMVMatrix = uMVMatrix;
+	        vPMatrix = uPMatrix;
+	        vTextureCoord = aTextureCoord;
+	    }
+
+	</script>
+
+	<script id="phong-f" type="fragment">
+	    precision mediump float;
+
+	    uniform mat3 uNMatrix;
+
+	    varying vec3 vPosition;
+	    varying vec3 N;
+	    varying mat4 vMVMatrix;
+	    varying mat4 vPMatrix;
+	    varying vec2 vTextureCoord;
+
+	    uniform float uMaterialShininess;
+	    uniform sampler2D uSampler;
+
+	    uniform vec3 uAmbientColor;
+	    uniform vec3 uPointLightingLocation;
+	    uniform vec3 uPointLightingSpecularColor;
+	    uniform vec3 uPointLightingDiffuseColor;
+	    uniform vec3 uPointLightingLocation2;
+	    uniform vec3 uPointLightingSpecularColor2;
+	    uniform vec3 uPointLightingDiffuseColor2;
+
+	    void main(void) {
+
+	        vec3 lightDirection = vec3(uPointLightingLocation.xyz - vPosition.xyz);
+	        vec3 lightDirection2 = vec3(uPointLightingLocation2.xyz - vPosition.xyz);
+	        mat4 mvp = vPMatrix * vMVMatrix;
+
+	        vec3 L = vec3(mvp * vec4(lightDirection, 1.0));
+	        vec3 L2 = vec3(mvp * vec4(lightDirection2, 1.0));
+	        vec3 V = -vec3(mvp * vec4(vPosition, 1.0));
+
+	        vec3 l = normalize(L);
+	        vec3 l2 = normalize(L2);
+	        vec3 n = normalize(uNMatrix * N);
+	        vec3 v = normalize(V);
+	        
+	        vec3 R = reflect(l, n);
+	        vec3 R2 = reflect(l2, n);
+
+	        float diffuseLightWeighting = dot(l, n) + dot(l2, n);
+	        float specularLightWeighting = pow(max(dot(R, v), 0.0), uMaterialShininess) + pow(max(dot(R2, v), 0.0), uMaterialShininess);
+
+	        vec3 lightWeighting = uAmbientColor
+	            + uPointLightingSpecularColor * specularLightWeighting
+	            + uPointLightingDiffuseColor * diffuseLightWeighting;       
+
+	        vec4 fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+	        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a); 
+
+	    }
+
+	</script>
+	<script id="gouraud-v2" type="vertex">
+	    attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec3 aFrontColor;
+
+	    uniform mat4 uMVMatrix;
+	    uniform mat4 uPMatrix;
+	    uniform mat3 uNMatrix;
+
+	    varying vec3 vFrontColor;
+	    varying vec3 lightWeighting;
+	    
+	    uniform float uMaterialShininess;
+
+	    uniform vec3 uAmbientColor;
+	    uniform vec3 uPointLightingLocation;
+	    uniform vec3 uPointLightingSpecularColor;
+	    uniform vec3 uPointLightingDiffuseColor;
+	    uniform vec3 uPointLightingLocation2;
+	    uniform vec3 uPointLightingSpecularColor2;
+	    uniform vec3 uPointLightingDiffuseColor2;
+
+	    void main(void) {
+	        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+
+	        vec3 lightDirection = normalize(uPointLightingLocation - (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+	        vec3 lightDirection2 = normalize(uPointLightingLocation2 - (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+
+	        vec3 normal = normalize(uNMatrix * aVertexNormal);
+	        vec3 eyeDirection = normalize(-(uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+	        vec3 reflectionDirection = reflect(-lightDirection, normal);
+	        vec3 reflectionDirection2 = reflect(-lightDirection2, normal);
+
+	        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess) + pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+	        float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0) + max(dot(normal, lightDirection2), 0.0);
+
+	        lightWeighting = uAmbientColor
+	            + uPointLightingSpecularColor * specularLightWeighting
+	            + uPointLightingDiffuseColor * diffuseLightWeighting;
+
+	        vFrontColor = aFrontColor;
+	    }
+	</script>
+
+	<script id="gouraud-f2" type="fragment">
+	    precision mediump float;
+
+	    uniform sampler2D uSampler;
+
+	    varying vec3 vFrontColor;
+	    varying vec3 lightWeighting;
+
+	    void main(void) {
+	        gl_FragColor = vec4(vFrontColor.rgb * lightWeighting, 1.0);
+	    }
+	</script>
+
+	<script id="flat-v2" type="vertex">
+	    attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec3 aFrontColor;
+
+	    uniform mat4 uMVMatrix;
+	    uniform mat4 uPMatrix;
+	    uniform mat3 uNMatrix;
+
+	    varying vec3 fragVertexEc;
+	    varying vec3 vFrontColor;
+
+	    void main(void) {
+	        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+	        fragVertexEc = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
+	        vec3 N = aVertexNormal;
+	        vFrontColor = aFrontColor;
+	    }
+	</script>
+
+	<script id="flat-f2" type="fragment">
+	    #extension GL_OES_standard_derivatives : enable
+
+	    precision mediump float;
+
+	    varying vec3 fragVertexEc;
+	    varying vec3 vFrontColor;
+
+	    uniform float uMaterialShininess;
+	    uniform sampler2D uSampler;
+
+	    uniform vec3 uAmbientColor;
+	    uniform vec3 uPointLightingLocation;
+	    uniform vec3 uPointLightingSpecularColor;
+	    uniform vec3 uPointLightingDiffuseColor;
+	    uniform vec3 uPointLightingLocation2;
+	    uniform vec3 uPointLightingSpecularColor2;
+	    uniform vec3 uPointLightingDiffuseColor2;
+
+	    void main(void) {
+	        vec3 X = dFdx(fragVertexEc);
+	        vec3 Y = dFdy(fragVertexEc);
+	        vec3 normal = normalize(cross(X, Y));
+
+	        vec3 lightDirection = normalize(uPointLightingLocation - fragVertexEc);
+	        vec3 lightDirection2 = normalize(uPointLightingLocation2 - fragVertexEc);
+	        vec3 eyeDirection = normalize(-fragVertexEc);
+	        vec3 reflectionDirection = reflect(-lightDirection, normal);
+	        vec3 reflectionDirection2 = reflect(-lightDirection2, normal);
+
+	        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess) + pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+	        float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0) + max(dot(normal, lightDirection2), 0.0);
+	        vec3 lightWeighting = uAmbientColor
+	            + uPointLightingSpecularColor * specularLightWeighting
+	            + uPointLightingDiffuseColor * diffuseLightWeighting;       
+
+	        gl_FragColor = vec4(vFrontColor.rgb * lightWeighting, 1.0);
+	    }
+	</script>
+
+	<script id="phong-v2" type="vertex">
+	    attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec3 aFrontColor;
+
+	    uniform mat4 uMVMatrix;
+	    uniform mat4 uPMatrix;
+
+	    varying vec3 vPosition;
+	    varying vec3 N;
+	    varying mat4 vMVMatrix;
+	    varying mat4 vPMatrix;
+	    varying vec3 vFrontColor;
+
+	    void main(void) {
+	        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+	        
+	        vPosition = aVertexPosition;
+	        N = aVertexNormal;
+	        vMVMatrix = uMVMatrix;
+	        vPMatrix = uPMatrix;
+	        vFrontColor = aFrontColor;
+	    }
+
+	</script>
+
+	<script id="phong-f2" type="fragment">
+	    precision mediump float;
+
+	    uniform mat3 uNMatrix;
+
+	    varying vec3 vPosition;
+	    varying vec3 N;
+	    varying mat4 vMVMatrix;
+	    varying mat4 vPMatrix;
+	    varying vec3 vFrontColor;
+
+	    uniform float uMaterialShininess;
+	    uniform sampler2D uSampler;
+
+	    uniform vec3 uAmbientColor;
+	    uniform vec3 uPointLightingLocation;
+	    uniform vec3 uPointLightingSpecularColor;
+	    uniform vec3 uPointLightingDiffuseColor;
+	    uniform vec3 uPointLightingLocation2;
+	    uniform vec3 uPointLightingSpecularColor2;
+	    uniform vec3 uPointLightingDiffuseColor2;
+
+	    void main(void) {
+
+	        vec3 lightDirection = vec3(uPointLightingLocation.xyz - vPosition.xyz);
+	        vec3 lightDirection2 = vec3(uPointLightingLocation2.xyz - vPosition.xyz);
+	        mat4 mvp = vPMatrix * vMVMatrix;
+
+	        vec3 L = vec3(mvp * vec4(lightDirection, 1.0));
+	        vec3 L2 = vec3(mvp * vec4(lightDirection2, 1.0));
+	        vec3 V = -vec3(mvp * vec4(vPosition, 1.0));
+
+	        vec3 l = normalize(L);
+	        vec3 l2 = normalize(L2);
+	        vec3 n = normalize(uNMatrix * N);
+	        vec3 v = normalize(V);
+	        
+	        vec3 R = reflect(l, n);
+	        vec3 R2 = reflect(l2, n);
+
+	        float diffuseLightWeighting = dot(l, n) + dot(l2, n);
+	        float specularLightWeighting = pow(max(dot(R, v), 0.0), uMaterialShininess) + pow(max(dot(R2, v), 0.0), uMaterialShininess);
+
+	        vec3 lightWeighting = uAmbientColor
+	            + uPointLightingSpecularColor * specularLightWeighting
+	            + uPointLightingDiffuseColor * diffuseLightWeighting;       
+
+	        gl_FragColor = vec4(vFrontColor.rgb * lightWeighting, 1.0);
+
+	    }
+
+	</script>
+
+    <script type="text/javascript">
+    var gl;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl");
+            gl.viewportWidth = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } catch (e) {}
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+        if(!gl.getExtension("OES_standard_derivatives")) {
+            alert('extension not support');
+        }
+    }
+
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+
+    var shaderProgram = {};
+    var shaderProgram2 = {};
+    var fragmentShader = {};
+    var fragmentShader2 = {};
+    var vertexShader = {};
+    var vertexShader2 = {};
+
+    var shaderType = ["flat", "gouraud", "phong"]
+
+    var models = ["Teapot.json", "Csie.json", "Kangaroo.json"];
+    var modelJson = new Array(models.length);
+
+    function initShaders() {
+    	for (var i = 0; i < shaderType.length; i++) {
+    		fragmentShader[shaderType[i]] = getShader(gl, shaderType[i]+"-f");
+    		vertexShader[shaderType[i]] = getShader(gl, shaderType[i]+"-v");
+
+    		shaderProgram[shaderType[i]] = gl.createProgram();
+    		gl.attachShader(shaderProgram[shaderType[i]], vertexShader[shaderType[i]]);
+        	gl.attachShader(shaderProgram[shaderType[i]], fragmentShader[shaderType[i]]);
+        	gl.linkProgram(shaderProgram[shaderType[i]]);
+
+        	if (!gl.getProgramParameter(shaderProgram[shaderType[i]], gl.LINK_STATUS)) {
+           		alert("Could not initialise shaders: " + shaderType[i] + gl.getShaderInfoLog(fragmentShader[shaderType[i]]));
+        	}
+
+        	shaderProgram[shaderType[i]].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[shaderType[i]], "aVertexPosition");
+	        gl.enableVertexAttribArray(shaderProgram[shaderType[i]].vertexPositionAttribute);
+
+	        shaderProgram[shaderType[i]].vertexNormalAttribute = gl.getAttribLocation(shaderProgram[shaderType[i]], "aVertexNormal");
+        	gl.enableVertexAttribArray(shaderProgram[shaderType[i]].vertexNormalAttribute);
+
+	        shaderProgram[shaderType[i]].textureCoordAttribute = gl.getAttribLocation(shaderProgram[shaderType[i]], "aTextureCoord");
+	        gl.enableVertexAttribArray(shaderProgram[shaderType[i]].textureCoordAttribute);
+
+	        shaderProgram[shaderType[i]].pMatrixUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPMatrix");
+	        shaderProgram[shaderType[i]].mvMatrixUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uMVMatrix");
+	        shaderProgram[shaderType[i]].nMatrixUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uNMatrix");
+	        shaderProgram[shaderType[i]].samplerUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uSampler");
+	        shaderProgram[shaderType[i]].materialShininessUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uMaterialShininess");
+
+	        shaderProgram[shaderType[i]].ambientColorUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uAmbientColor");
+	        shaderProgram[shaderType[i]].pointLightingLocationUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPointLightingLocation");
+	        shaderProgram[shaderType[i]].pointLightingSpecularColorUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPointLightingSpecularColor");
+	        shaderProgram[shaderType[i]].pointLightingDiffuseColorUniform = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPointLightingDiffuseColor");
+	        shaderProgram[shaderType[i]].pointLightingLocationUniform2 = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPointLightingLocation2");
+	        shaderProgram[shaderType[i]].pointLightingSpecularColorUniform2 = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPointLightingSpecularColor2");
+	        shaderProgram[shaderType[i]].pointLightingDiffuseColorUniform2 = gl.getUniformLocation(shaderProgram[shaderType[i]], "uPointLightingDiffuseColor2");
+   		}
+   		for (var i = 0; i < shaderType.length; i++) {
+    		fragmentShader2[shaderType[i]] = getShader(gl, shaderType[i]+"-f2");
+    		vertexShader2[shaderType[i]] = getShader(gl, shaderType[i]+"-v2");
+
+    		shaderProgram2[shaderType[i]] = gl.createProgram();
+    		gl.attachShader(shaderProgram2[shaderType[i]], vertexShader2[shaderType[i]]);
+        	gl.attachShader(shaderProgram2[shaderType[i]], fragmentShader2[shaderType[i]]);
+        	gl.linkProgram(shaderProgram2[shaderType[i]]);
+
+        	if (!gl.getProgramParameter(shaderProgram2[shaderType[i]], gl.LINK_STATUS)) {
+           		alert("Could not initialise shaders: " + shaderType[i] + gl.getShaderInfoLog(fragmentShader2[shaderType[i]]));
+        	}
+
+        	shaderProgram2[shaderType[i]].vertexPositionAttribute = gl.getAttribLocation(shaderProgram2[shaderType[i]], "aVertexPosition");
+	        gl.enableVertexAttribArray(shaderProgram2[shaderType[i]].vertexPositionAttribute);
+
+	        shaderProgram2[shaderType[i]].vertexNormalAttribute = gl.getAttribLocation(shaderProgram2[shaderType[i]], "aVertexNormal");
+        	gl.enableVertexAttribArray(shaderProgram2[shaderType[i]].vertexNormalAttribute);
+
+	        shaderProgram2[shaderType[i]].vertexFrontColorAttribute = gl.getAttribLocation(shaderProgram2[shaderType[i]], "aFrontColor");
+	        gl.enableVertexAttribArray(shaderProgram2[shaderType[i]].vertexFrontColorAttribute);
+
+	        shaderProgram2[shaderType[i]].pMatrixUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPMatrix");
+	        shaderProgram2[shaderType[i]].mvMatrixUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uMVMatrix");
+	        shaderProgram2[shaderType[i]].nMatrixUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uNMatrix");
+	        shaderProgram2[shaderType[i]].samplerUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uSampler");
+	        shaderProgram2[shaderType[i]].materialShininessUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uMaterialShininess");
+
+	        shaderProgram2[shaderType[i]].ambientColorUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uAmbientColor");
+	        shaderProgram2[shaderType[i]].pointLightingLocationUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPointLightingLocation");
+	        shaderProgram2[shaderType[i]].pointLightingSpecularColorUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPointLightingSpecularColor");
+	        shaderProgram2[shaderType[i]].pointLightingDiffuseColorUniform = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPointLightingDiffuseColor");
+	        shaderProgram2[shaderType[i]].pointLightingLocationUniform2 = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPointLightingLocation2");
+	        shaderProgram2[shaderType[i]].pointLightingSpecularColorUniform2 = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPointLightingSpecularColor2");
+	        shaderProgram2[shaderType[i]].pointLightingDiffuseColorUniform2 = gl.getUniformLocation(shaderProgram2[shaderType[i]], "uPointLightingDiffuseColor2");
+   		}
+    }
+
+    function handleLoadedTexture(texture) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+
+    var texture;
+    var selectedTexture = 0;
+    var textureNames = ["galvanizedTexture.jpg", "china.jpg", "wood.jpg"];
+
+    function initTextures() {
+		texture = gl.createTexture();
+		texture.image = new Image();
+		texture.image.onload = function() {
+			handleLoadedTexture(texture);
+		}
+     	texture.image.src = textureNames[selectedTexture];
+    }
+
+    var mvMatrix = new Array(models.length);
+    var pMatrix = new Array(models.length);
+    var nMatrix = new Array(models.length);
+
+    var mvMatrix2 = new Array(models.length);
+    var pMatrix2 = new Array(models.length);
+    var nMatrix2 = new Array(models.length);
+
+    function setMatrixUniforms(program, id) {
+        gl.uniformMatrix4fv(program.pMatrixUniform, false, pMatrix[id]);
+        gl.uniformMatrix4fv(program.mvMatrixUniform, false, mvMatrix[id]);
+        mat4.toInverseMat3(mvMatrix[id], nMatrix[id]);
+        mat3.transpose(nMatrix[id]);
+        gl.uniformMatrix3fv(program.nMatrixUniform, false, nMatrix[id]);
+    }
+
+    function setMatrixUniforms2(program, id) {
+        gl.uniformMatrix4fv(program.pMatrixUniform, false, pMatrix2[id]);
+        gl.uniformMatrix4fv(program.mvMatrixUniform, false, mvMatrix2[id]);
+        mat4.toInverseMat3(mvMatrix2[id], nMatrix2[id]);
+        mat3.transpose(nMatrix2[id]);
+        gl.uniformMatrix3fv(program.nMatrixUniform, false, nMatrix2[id]);
+    }
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+    var modelVertexPositionBuffer = new Array(models.length);
+    var modelVertexNormalBuffer = new Array(models.length);
+    var modelVertexTextureCoordBuffer = new Array(models.length);
+    var modelVertexIndexBuffer = new Array(models.length);
+    var modelVertexFrontColorBuffer = new Array(models.length);
+    var modelVertexBackColorBuffer = new Array(models.length);
+
+    function handleLoadedModel(id, modelData) {
+    	modelJson[id] = modelData;
+    	if (modelData.hasOwnProperty("vertexNormals")) {
+	        modelVertexNormalBuffer[id] = gl.createBuffer();
+	        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexNormalBuffer[id]);
+	        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelData.vertexNormals), gl.STATIC_DRAW);
+	        modelVertexNormalBuffer[id].itemSize = 3;
+	        modelVertexNormalBuffer[id].numItems = modelData.vertexNormals.length / 3;
+	    }
+
+        if (modelData.hasOwnProperty("vertexTextureCoords")) {
+	        modelVertexTextureCoordBuffer[id] = gl.createBuffer();
+	        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexTextureCoordBuffer[id]);
+	        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelData.vertexTextureCoords), gl.STATIC_DRAW);
+	        modelVertexTextureCoordBuffer[id].itemSize = 2;
+	        modelVertexTextureCoordBuffer[id].numItems = modelData.vertexTextureCoords.length / 2;
+	    }
+
+        if (modelData.hasOwnProperty("vertexPositions")) {
+        	modelVertexPositionBuffer[id] = gl.createBuffer();
+        	gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexPositionBuffer[id]);
+        	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelData.vertexPositions), gl.STATIC_DRAW);
+        	modelVertexPositionBuffer[id].itemSize = 3;
+        	modelVertexPositionBuffer[id].numItems = modelData.vertexPositions.length / 3;
+        }
+        
+		if (modelData.hasOwnProperty("indices")) {
+	        modelVertexIndexBuffer[id] = gl.createBuffer();
+	        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, modelVertexIndexBuffer[id]);
+	        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(modelData.indices), gl.STATIC_DRAW);
+	        modelVertexIndexBuffer[id].itemSize = 1;
+	        modelVertexIndexBuffer[id].numItems = modelData.indices.length;
+	    }
+
+	    if (modelData.hasOwnProperty("vertexFrontcolors")) {
+	        modelVertexFrontColorBuffer[id] = gl.createBuffer();
+	        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexFrontColorBuffer[id]);
+	        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelData.vertexFrontcolors), gl.STATIC_DRAW);
+	        modelVertexFrontColorBuffer[id].itemSize = 3;
+	        modelVertexFrontColorBuffer[id].numItems = modelData.vertexFrontcolors.length / 3;
+	    }
+
+		if (modelData.hasOwnProperty("vertexBackcolors")) {
+	        modelVertexBackColorBuffer[id] = gl.createBuffer();
+	        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexBackColorBuffer[id]);
+	        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelData.vertexBackcolors), gl.STATIC_DRAW);
+	        modelVertexBackColorBuffer[id].itemSize = 3;
+	        modelVertexBackColorBuffer[id].numItems = modelData.vertexBackcolors.length / 3;
+	    }
+    }
+
+    function loadModel() {
+        var request = new Array(models.length)
+
+        for (var i = 0; i < models.length; i++) {
+        	(function(i) {
+        		request[i] = new XMLHttpRequest();
+	        	request[i].open("GET", models[i]);
+	        	request[i].onreadystatechange = function() {
+	            	if (request[i].readyState == 4) {
+	               		handleLoadedModel(i, JSON.parse(request[i].responseText));
+	            	}
+	        	}
+	        	request[i].send();
+        	})(i);
+        }
+    }
+
+    var modelAngleX = [0, 0, 0];
+    var modelAngleY = [0, 0, 0];
+    var modelAngleZ = [0, 0, 0];
+    var position = [[-40, 0, -60], [-2, 0, -40], [40, 0, -60]];
+    var scales = [[1, 1, 1], [10, 10, 10], [10, 10, 10]];
+    var selectedShading = ["flat", "flat", "flat"];
+    var materials = [32, 32, 32];
+    var shear = [90, 90, 90]
+
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        materials[0] = parseInt(document.getElementById("teapotMaterial").value);
+    	materials[1] = parseInt(document.getElementById("csieMaterial").value);
+    	materials[2] = parseInt(document.getElementById("kangarooMaterial").value);
+    	position[0] = [
+    			parseInt(document.getElementById("teapotX").value),
+    			parseInt(document.getElementById("teapotY").value),
+    			parseInt(document.getElementById("teapotZ").value)];
+    	position[1] = [
+    			parseInt(document.getElementById("csieX").value),
+    			parseInt(document.getElementById("csieY").value),
+    			parseInt(document.getElementById("csieZ").value)];
+    	position[2] = [
+    			parseInt(document.getElementById("kangarooX").value),
+    			parseInt(document.getElementById("kangarooY").value),
+    			parseInt(document.getElementById("kangarooZ").value)];
+
+    	scales[0] = [
+		        parseInt(document.getElementById("teapotSX").value),
+		        parseInt(document.getElementById("teapotSY").value),
+		        parseInt(document.getElementById("teapotSZ").value)];
+        scales[1] = [
+        		parseInt(document.getElementById("csieSX").value),
+        		parseInt(document.getElementById("csieSY").value),
+        		parseInt(document.getElementById("csieSZ").value)];
+        scales[2] = [
+        		parseInt(document.getElementById("kangarooSX").value),
+        		parseInt(document.getElementById("kangarooSY").value),
+        		parseInt(document.getElementById("kangarooSZ").value)];
+
+        shear[0] = parseInt(document.getElementById("teapotShear").value);
+        shear[1] = parseInt(document.getElementById("csieShear").value);
+        shear[2] = parseInt(document.getElementById("kangarooShear").value);
+    	
+
+        for (var i = 0; i < models.length; i++) {
+
+        	mvMatrix[i] = mat4.create();
+        	pMatrix[i] = mat4.create();
+        	nMatrix[i] = mat3.create();
+        	mvMatrix2[i] = mat4.create();
+        	pMatrix2[i] = mat4.create();
+        	nMatrix2[i] = mat3.create();
+
+        	if (!modelJson[i].hasOwnProperty("vertexFrontcolors")) {
+
+        		if (modelVertexPositionBuffer[i] == null || modelVertexNormalBuffer[i] == null || modelVertexTextureCoordBuffer[i] == null || modelVertexIndexBuffer[i] == null) {
+            		return;
+        		}
+        		var program = shaderProgram[selectedShading[i]];
+        		gl.useProgram(program);
+
+        		gl.uniform3f(
+		            program.ambientColorUniform,
+		            parseFloat(document.getElementById("ambientR").value),
+		            parseFloat(document.getElementById("ambientG").value),
+		            parseFloat(document.getElementById("ambientB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingLocationUniform,
+		            parseFloat(document.getElementById("firstLightX").value),
+		            parseFloat(document.getElementById("firstLightY").value),
+		            parseFloat(document.getElementById("firstLightZ").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingSpecularColorUniform,
+		            parseFloat(document.getElementById("specularR").value),
+		            parseFloat(document.getElementById("specularG").value),
+		            parseFloat(document.getElementById("specularB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingDiffuseColorUniform,
+		            parseFloat(document.getElementById("diffuseR").value),
+		            parseFloat(document.getElementById("diffuseG").value),
+		            parseFloat(document.getElementById("diffuseB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingLocationUniform2,
+		            parseFloat(document.getElementById("secondLightX").value),
+		            parseFloat(document.getElementById("secondLightY").value),
+		            parseFloat(document.getElementById("secondLightZ").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingSpecularColorUniform2,
+		            parseFloat(document.getElementById("specularR").value),
+		            parseFloat(document.getElementById("specularG").value),
+		            parseFloat(document.getElementById("specularB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingDiffuseColorUniform2,
+		            parseFloat(document.getElementById("diffuseR").value),
+		            parseFloat(document.getElementById("diffuseG").value),
+		            parseFloat(document.getElementById("diffuseB").value)
+		        );
+
+        		mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 200.0, pMatrix[i]);
+
+		        mat4.identity(mvMatrix[i]);
+
+		        mat4.translate(mvMatrix[i], position[i]);
+
+		        mat4.rotate(mvMatrix[i], degToRad(modelAngleX[i]), [1, 0, 0]);
+		        mat4.rotate(mvMatrix[i], degToRad(modelAngleY[i]), [0, 1, 0]);
+		        mat4.rotate(mvMatrix[i], degToRad(modelAngleZ[i]), [0, 0, 1]);
+
+		        mat4.scale(mvMatrix[i], scales[0]);
+
+		        var mat4Shear = [1, 0, 0, 0,
+                                (1/Math.tan(degToRad(shear[i]))), 1, 0, 0,
+                                0, 0, 1, 0,
+                                0, 0, 0, 1];
+                mat4.multiply(mat4Shear, mvMatrix[i], mvMatrix[i]);
+
+		        gl.activeTexture(gl.TEXTURE0);
+		        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+		        gl.uniform1i(program.samplerUniform, 0);
+		        gl.uniform1f(program.materialShininessUniform, materials[i]);
+
+		        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexPositionBuffer[i]);
+		        gl.vertexAttribPointer(program.vertexPositionAttribute, modelVertexPositionBuffer[i].itemSize, gl.FLOAT, false, 0, 0);
+
+		        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexTextureCoordBuffer[i]);
+		        gl.vertexAttribPointer(program.textureCoordAttribute, modelVertexTextureCoordBuffer[i].itemSize, gl.FLOAT, false, 0, 0);
+
+		        gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexNormalBuffer[i]);
+        		gl.vertexAttribPointer(program.vertexNormalAttribute, modelVertexNormalBuffer[i].itemSize, gl.FLOAT, false, 0, 0);
+
+		        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, modelVertexIndexBuffer[i]);
+		        setMatrixUniforms(program, i);
+		        gl.drawElements(gl.TRIANGLES, modelVertexIndexBuffer[i].numItems, gl.UNSIGNED_SHORT, 0); 
+
+        	} else {
+
+        		if (modelVertexPositionBuffer[i] == null || modelVertexNormalBuffer[i] == null || modelVertexFrontColorBuffer[i] == null || modelVertexBackColorBuffer[i] == null) {
+            		return;
+        		}
+
+        		var program = shaderProgram2[selectedShading[i]];
+        		gl.useProgram(program);
+
+        		gl.uniform3f(
+		            program.ambientColorUniform,
+		            parseFloat(document.getElementById("ambientR").value),
+		            parseFloat(document.getElementById("ambientG").value),
+		            parseFloat(document.getElementById("ambientB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingLocationUniform,
+		            parseFloat(document.getElementById("firstLightX").value),
+		            parseFloat(document.getElementById("firstLightY").value),
+		            parseFloat(document.getElementById("firstLightZ").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingSpecularColorUniform,
+		            parseFloat(document.getElementById("specularR").value),
+		            parseFloat(document.getElementById("specularG").value),
+		            parseFloat(document.getElementById("specularB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingDiffuseColorUniform,
+		            parseFloat(document.getElementById("diffuseR").value),
+		            parseFloat(document.getElementById("diffuseG").value),
+		            parseFloat(document.getElementById("diffuseB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingLocationUniform2,
+		            parseFloat(document.getElementById("secondLightX").value),
+		            parseFloat(document.getElementById("secondLightY").value),
+		            parseFloat(document.getElementById("secondLightZ").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingSpecularColorUniform2,
+		            parseFloat(document.getElementById("specularR").value),
+		            parseFloat(document.getElementById("specularG").value),
+		            parseFloat(document.getElementById("specularB").value)
+		        );
+
+		        gl.uniform3f(
+		            program.pointLightingDiffuseColorUniform2,
+		            parseFloat(document.getElementById("diffuseR").value),
+		            parseFloat(document.getElementById("diffuseG").value),
+		            parseFloat(document.getElementById("diffuseB").value)
+		        );
+
+        		mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 200.0, pMatrix2[i]);
+
+		        mat4.identity(mvMatrix2[i]);
+
+		        mat4.translate(mvMatrix2[i], position[i]);
+
+		        mat4.rotate(mvMatrix2[i], degToRad(modelAngleX[i]), [1, 0, 0]);
+		        mat4.rotate(mvMatrix2[i], degToRad(modelAngleY[i]), [0, 1, 0]);
+		        mat4.rotate(mvMatrix2[i], degToRad(modelAngleZ[i]), [0, 0, 1]);
+
+		        mat4.scale(mvMatrix2[i], scales[i]);
+
+		        var mat4Shear = [1, 0, 0, 0,
+                                (1/Math.tan(degToRad(shear[i]))), 1, 0, 0,
+                                0, 0, 1, 0,
+                                0, 0, 0, 1];
+                mat4.multiply(mat4Shear, mvMatrix2[i], mvMatrix2[i]);
+
+        		gl.uniform1i(program.samplerUniform, 0);
+        		gl.uniform1f(program.materialShininessUniform, materials[i]);
+
+        		gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexPositionBuffer[i]);
+        		gl.vertexAttribPointer(program.vertexPositionAttribute, modelVertexPositionBuffer[i].itemSize, gl.FLOAT, false, 0, 0);
+
+        		gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexFrontColorBuffer[i]);
+        		gl.vertexAttribPointer(program.vertexFrontColorAttribute, modelVertexFrontColorBuffer[i].itemSize, gl.FLOAT, false, 0, 0);
+
+        		gl.bindBuffer(gl.ARRAY_BUFFER, modelVertexNormalBuffer[i]);
+        		gl.vertexAttribPointer(program.vertexNormalAttribute, modelVertexNormalBuffer[i].itemSize, gl.FLOAT, false, 0, 0);
+
+        		setMatrixUniforms2(program, i);
+        		gl.drawArrays(gl.TRIANGLES, 0, modelVertexPositionBuffer[i].numItems);
+
+        	}
+        }
+    }
+
+
+    var lastTime = 0;
+
+    function animate() {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+            modelAngleX[0] += parseFloat(document.getElementById("teapotRX").value) * elapsed;
+            modelAngleY[0] += parseFloat(document.getElementById("teapotRY").value) * elapsed;
+            modelAngleZ[0] += parseFloat(document.getElementById("teapotRZ").value) * elapsed;
+            modelAngleX[1] += parseFloat(document.getElementById("csieRX").value) * elapsed;
+            modelAngleY[1] += parseFloat(document.getElementById("csieRY").value) * elapsed;
+            modelAngleZ[1] += parseFloat(document.getElementById("csieRZ").value) * elapsed;
+            modelAngleX[2] += parseFloat(document.getElementById("kangarooRX").value) * elapsed;
+            modelAngleY[2] += parseFloat(document.getElementById("kangarooRY").value) * elapsed;
+            modelAngleZ[2] += parseFloat(document.getElementById("kangarooRZ").value) * elapsed;
+        }
+        lastTime = timeNow;
+    }
+
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+        animate();
+    }
+
+
+    function webGLStart() {
+        var canvas = document.getElementById("ICG-canvas");
+        canvas.width = window.innerWidth;
+        canvas.height = 400;
+        initGL(canvas);
+        initShaders();
+        initTextures();
+        loadModel();
+
+        gl.clearColor(0.0, 0.2, 0.2, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+        tick();
+    }
+
+    // Configuration for HTML
+    function ChangeTeapotShading(element) {
+    	var last = document.getElementsByClassName("btn btn-primary active")[0];
+    	last.className = "btn btn-primary";
+		element.className = "btn btn-primary active";
+		selectedShading[0] = element.value;
+	}
+
+	function ChangeCsieShading(element) {
+    	var last = document.getElementsByClassName("btn btn-primary active")[1];
+    	last.className = "btn btn-primary";
+		element.className = "btn btn-primary active";
+		selectedShading[1] = element.value;
+	}
+
+	function ChangeKangarooShading(element) {
+    	var last = document.getElementsByClassName("btn btn-primary active")[2];
+    	last.className = "btn btn-primary";
+		element.className = "btn btn-primary active";
+		selectedShading[2] = element.value;
+	}
+
+	function ChangeTeapotTexture(element) {
+    	var last = document.getElementsByClassName("btn active")[1];
+    	last.className = "btn";
+		element.className = "btn active";
+		selectedTexture = parseInt(element.value);
+		initTextures();
+	}
+    </script>
+</head>
+
+<body onload="webGLStart();">
+    <nav class="navbar navbar-default navbar-fixed-top">
+        <div class="container-fluid">
+        	<div class="navbar-header">
+            	<a class="navbar-brand" href="#">ICG WebGL Demo</a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar-collapse-1"">
+            	<ul class="nav navbar-nav navbar-right">
+            		<p class="navbar-text">網媒所 R06944022 楊喬宇</p>
+            	</ul>
+            </div>
+        </div>
+    </nav>
+    <div class="row">
+        <div class="col-lg-12">
+            <canvas id="ICG-canvas" style="border: none;"></canvas>
+        </div>
+    </div>
+    <div class="row">
+		<div class="col-lg-12">
+			<div class="container-fluid">
+			<ul class="nav nav-tabs">
+		    	<li class="active"><a data-toggle="tab" href="#light">Light</a></li>
+		    	<li><a data-toggle="tab" href="#teapot">Teapot</a></li>
+		    	<li><a data-toggle="tab" href="#csie">Csie</a></li>
+		    	<li><a data-toggle="tab" href="#kangaroo">Kangaroo</a></li>
+			</ul>
+			<div class="tab-content">
+				<div id="light" class="tab-pane fade in active">
+					<div class="container-fluid" style="margin-bottom: 30px;">
+				    <h3>Light Configuration</h3>
+				    <br/>
+				    <div class="col-lg-6">
+					    <div>
+				    		<h5 style="display: inline-block;">First Light Location</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetFirstLight()">Reset</button>
+				    	</div>
+				    	<script type="text/javascript">
+				    		function ResetFirstLight() {
+				    			document.getElementById("firstLightX").value = -90;
+				    			document.getElementById("firstLightY").value = 70;
+				    			document.getElementById("firstLightZ").value = -15;
+				    			document.getElementById("firstLightXAmount").value = -90;
+				    			document.getElementById("firstLightYAmount").value = 70;
+				    			document.getElementById("firstLightZAmount").value = -15;
+				    		}
+				    	</script>
+						<div><form>
+							<div class="col-lg-1">X:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="slider" type="range" min="-90" max="90" value="-90" id="firstLightX" name="flxRange" for="flxAmount" oninput="flxAmount.value=flxRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="-90" id="firstLightXAmount" name="flxAmount" for="flxRange" oninput="flxRange.value=flxAmount.value" style="width: 30px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">Y:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="slider" type="range" min="-90" max="90" value="70" id="firstLightY" name="flyRange" for="flyAmount" oninput="flyAmount.value=flyRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="70" id="firstLightYAmount" name="flyAmount" for="flyRange" oninput="flyRange.value=flyAmount.value" style="width: 30px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">Z:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="slider" type="range" min="-90" max="90" value="-15" id="firstLightZ" name="flzRange" for="flzAmount" oninput="flzAmount.value=flzRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="-15" id="firstLightZAmount" name="flzAmount" for="flzRange" oninput="flzRange.value=flzAmount.value" style="width: 30px;" />
+							</div>
+						</form></div>
+					</div>
+					<div class="col-lg-6">
+					    <div>
+				    		<h5 style="display: inline-block;">Second Light Location</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetSecondLight()">Reset</button>
+				    	</div>
+				    	<script type="text/javascript">
+				    		function ResetSecondLight() {
+				    			document.getElementById("secondLightX").value = 65;
+				    			document.getElementById("secondLightY").value = 7;
+				    			document.getElementById("secondLightZ").value = -50;
+				    			document.getElementById("secondLightXAmount").value = 65;
+				    			document.getElementById("secondLightYAmount").value = 7;
+				    			document.getElementById("secondLightZAmount").value = -50;
+				    		}
+				    	</script>
+						<div><form>
+							<div class="col-lg-1">X:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="slider" type="range" min="-90" max="90" value="65" id="secondLightX" name="slxRange" for="slxAmount" oninput="slxAmount.value=slxRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="65" id="secondLightXAmount" name="slxAmount" for="slxRange" oninput="slxRange.value=slxAmount.value" style="width: 30px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">Y:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="slider" type="range" min="-90" max="90" value="7" id="secondLightY" name="slyRange" for="slyAmount" oninput="slyAmount.value=slyRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="7" id="secondLightYAmount" name="slyAmount" for="slyRange" oninput="slyRange.value=slyAmount.value" style="width: 30px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">Z:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="slider" type="range" min="-90" max="90" value="-50" id="secondLightZ" name="slzRange" for="slzAmount" oninput="slzAmount.value=slzRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="-50" id="secondLightZAmount" name="slzAmount" for="slzRange" oninput="slzRange.value=slzAmount.value" style="width: 30px;" />
+							</div>
+						</form></div>
+					</div>
+					<div class="col-lg-12"><HR></div>
+					<div class="col-lg-4">
+				    	<div>
+				    		<h5 style="display: inline-block;">Specular Color</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetSpecular()">Reset</button>
+				    	</div>
+				    	<script type="text/javascript">
+				    		function ResetSpecular() {
+				    			document.getElementById("specularR").value = 0.8;
+				    			document.getElementById("specularG").value = 0.8;
+				    			document.getElementById("specularB").value = 0.8;
+				    			document.getElementById("specularRAmount").value = 0.8;
+				    			document.getElementById("specularGAmount").value = 0.8;
+				    			document.getElementById("specularBAmount").value = 0.8;
+				    		}
+				    	</script>
+						<div><form>
+							<div class="col-lg-1">R:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderR" type="range" min="0.0" max="1.0" value="0.8" step="0.01" id="specularR" name="srRange" for="srAmount" oninput="srAmount.value=srRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.8" id="specularRAmount" name="srAmount" for="srRange" oninput="srRange.value=srAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">G:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderG" type="range" min="0.0" max="1.0" value="0.8" step="0.01" id="specularG" name="sgRange" for="sgAmount" oninput="sgAmount.value=sgRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.8" id="specularGAmount" name="sgAmount" for="sgRange" oninput="sgRange.value=sgAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">B:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderB" type="range" min="0.0" max="1.0" value="0.8" step="0.01" id="specularB" name="sbRange" for="sbAmount" oninput="sbAmount.value=sbRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.8" id="specularBAmount" name="sbAmount" for="sbRange" oninput="sbRange.value=sbAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+					</div>
+					<div class="col-lg-4">
+				    	<div>
+				    		<h5 style="display: inline-block;">Diffuse Color</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetDiffuse()">Reset</button>
+				    	</div>
+				    	<script type="text/javascript">
+				    		function ResetDiffuse() {
+				    			document.getElementById("diffuseR").value = 0.8;
+				    			document.getElementById("diffuseG").value = 0.8;
+				    			document.getElementById("diffuseB").value = 0.8;
+				    			document.getElementById("diffuseRAmount").value = 0.8;
+				    			document.getElementById("diffuseGAmount").value = 0.8;
+				    			document.getElementById("diffuseBAmount").value = 0.8;
+				    		}
+				    	</script>
+						<div><form>
+							<div class="col-lg-1">R:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderR" type="range" min="0.0" max="1.0" value="0.8" step="0.01" id="diffuseR" name="drRange" for="drAmount" oninput="drAmount.value=drRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.8" id="diffuseRAmount" name="drAmount" for="drRange" oninput="drRange.value=drAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">G:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderG" type="range" min="0.0" max="1.0" value="0.8" step="0.01" id="diffuseG" name="dgRange" for="dgAmount" oninput="dgAmount.value=dgRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.8" id="diffuseGAmount" name="dgAmount" for="dgRange" oninput="dgRange.value=dgAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">B:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderB" type="range" min="0.0" max="1.0" value="0.8" step="0.01" id="diffuseB" name="dbRange" for="dbAmount" oninput="dbAmount.value=dbRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.8" id="diffuseBAmount" name="dbAmount" for="dbRange" oninput="dbRange.value=dbAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+					</div>
+					<div class="col-lg-4">
+				    	<div>
+				    		<h5 style="display: inline-block;">Ambient Color</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetAmbient()">Reset</button>
+				    	</div>
+				    	<script type="text/javascript">
+				    		function ResetAmbient() {
+				    			document.getElementById("ambientR").value = 0.2;
+				    			document.getElementById("ambientG").value = 0.2;
+				    			document.getElementById("ambientB").value = 0.2;
+				    			document.getElementById("ambientRAmount").value = 0.2;
+				    			document.getElementById("ambientGAmount").value = 0.2;
+				    			document.getElementById("ambientBAmount").value = 0.2;
+				    		}
+				    	</script>
+						<div><form>
+							<div class="col-lg-1">R:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderR" type="range" min="0.0" max="1.0" value="0.2" step="0.01" id="ambientR" name="arRange" for="arAmount" oninput="arAmount.value=arRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.2" id="ambientRAmount" name="arAmount" for="arRange" oninput="arRange.value=arAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">G:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderG" type="range" min="0.0" max="1.0" value="0.2" step="0.01" id="ambientG" name="agRange" for="agAmount" oninput="agAmount.value=agRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.2" id="ambientGAmount" name="agAmount" for="agRange" oninput="agRange.value=agAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+						<div><form>
+							<div class="col-lg-1">B:</div>
+							<div class="col-lg-7" style="top: 12px;">
+					  			<input class="sliderB" type="range" min="0.0" max="1.0" value="0.2" step="0.01" id="ambientB" name="abRange" for="abAmount" oninput="abAmount.value=abRange.value" />
+					  		</div>
+					  		<div class="col-lg-4">
+								<input type="text" value="0.2" id="ambientBAmount" name="abAmount" for="abRange" oninput="abRange.value=abAmount.value" style="width: 40px;" />
+							</div>
+						</form></div>
+					</div>
+					</div>
+				</div>
+		    	<div id="teapot" class="tab-pane fade">
+		        	<div class="container-fluid" style="margin-bottom: 30px;">
+		        		<h3>Teapot</h3>
+		        		<br/>
+		        		<div class="row">
+		        		<div class="col-lg-2">
+					    	<h5>Shading</h5>
+						</div>
+						<div class="col-lg-10">
+							<form>
+								<button type="button" id="teapotShading1" class="btn btn-primary active" value="flat" onclick="ChangeTeapotShading(this)">Flat</button>
+						    	<button type="button" id="teapotShading2" class="btn btn-primary" value="gouraud" onclick="ChangeTeapotShading(this)">Gouraud</button>
+						    	<button type="button" id="teapotShading3" class="btn btn-primary" value="phong" onclick="ChangeTeapotShading(this)">Phong</button>
+							</form>
+						</div>
+						</div>
+					    <br/>
+					    <div class="row">
+					    <div class="col-lg-2">
+					    	<h5>Texture</h5>
+						</div>
+						<div class="col-lg-10">
+							<form>
+								<button type="button" id="teapotTexture1" class="btn active" value="0" onclick="ChangeTeapotTexture(this)">Default</button>
+						    	<button type="button" id="teapotTexture2" class="btn" value="1" onclick="ChangeTeapotTexture(this)">China</button>
+						    	<button type="button" id="teapotTexture3" class="btn" value="2" onclick="ChangeTeapotTexture(this)">Wood</button>
+							</form>
+						</div>
+						</div>
+						</br>
+						<div class="row">
+			            <div class="col-lg-2">
+					    	<h5 style="display: inline;">Material</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetTeapotMaterial()">Reset</button>
+						</div>
+						<script type="text/javascript">
+				    		function ResetTeapotMaterial() {
+				    			document.getElementById("teapotMaterial").value = 32;
+				    			document.getElementById("teapotMaterialAmount").value = 32;
+				    		}
+				    	</script>
+						<form>
+							<div class="col-lg-5" style="top: 12px;">
+					  			<input class="slider" type="range" min="1" max="100" value="32" id="teapotMaterial" name="tmRange" for="tmAmount" oninput="tmAmount.value=tmRange.value" />
+					  		</div>
+					  		<div class="col-lg-5">
+								<input type="text" value="32" id="teapotMaterialAmount" name="tmAmount" for="tmRange" oninput="tmRange.value=tmAmount.value" style="width: 30px;" />
+							</div>
+						</form>
+						</div>
+						</br>
+						<div class="row">
+						<div class="col-lg-2">
+					    	<h5 style="display: inline;">Shear</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetTeapotShear()">Reset</button>
+						</div>
+						<script type="text/javascript">
+				    		function ResetTeapotShear() {
+				    			document.getElementById("teapotShear").value = 90;
+				    			document.getElementById("teapotShearAmount").value = 90;
+				    			shear[0] = 90;
+				    		}
+				    	</script>
+						<form>
+							<div class="col-lg-5" style="top: 12px;">
+					  			<input class="slider" type="range" min="1" max="179" step="1" value="90" id="teapotShear" name="tshRange" for="tshAmount" oninput="tshAmount.value=tshRange.value" />
+					  		</div>
+					  		<div class="col-lg-5">
+								<input type="text" value="90" id="teapotShearAmount" name="tshAmount" for="tshRange" oninput="tshRange.value=tshAmount.value" style="width: 40px;" />
+							</div>
+						</form>
+						</div>
+				        <div class="col-lg-12"><HR></div>
+				        <div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Location</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetTeapotLocation()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetTeapotLocation() {
+					    			document.getElementById("teapotX").value = -40;
+					    			document.getElementById("teapotY").value = 0;
+					    			document.getElementById("teapotZ").value = -60;
+					    			document.getElementById("teapotXAmount").value = -40;
+					    			document.getElementById("teapotYAmount").value = 0;
+					    			document.getElementById("teapotZAmount").value = -60;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-90" max="90" value="-40" id="teapotX" name="txRange" for="txAmount" oninput="txAmount.value=txRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="-40" id="teapotXAmount" name="txAmount" for="txRange" oninput="txRange.value=txAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-90" max="90" value="0" id="teapotY" name="tyRange" for="tyAmount" oninput="tyAmount.value=tyRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="teapotYAmount" name="tyAmount" for="tyRange" oninput="tyRange.value=tyAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-100" max="-10" value="-60" id="teapotZ" name="tzRange" for="tzAmount" oninput="tzAmount.value=tzRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="-60" id="teapotZAmount" name="tzAmount" for="tzRange" oninput="tzRange.value=tzAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+						</div>
+						<div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Scale</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetTeapotScale()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetTeapotScale() {
+					    			document.getElementById("teapotSX").value = 1.0;
+					    			document.getElementById("teapotSY").value = 1.0;
+					    			document.getElementById("teapotSZ").value = 1.0;
+					    			document.getElementById("teapotSXAmount").value = 1.0;
+					    			document.getElementById("teapotSYAmount").value = 1.0;
+					    			document.getElementById("teapotSZAmount").value = 1.0;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="1.0" id="teapotSX" name="tsxRange" for="tsxAmount" oninput="tsxAmount.value=tsxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="1.0" id="teapotSXAmount" name="tsxAmount" for="tsxRange" oninput="tsxRange.value=tsxAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="1.0" id="teapotSY" name="tsyRange" for="tsyAmount" oninput="tsyAmount.value=tsyRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="1.0" id="teapotSYAmount" name="tsyAmount" for="tsyRange" oninput="tsyRange.value=tsyAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="1.0" id="teapotSZ" name="tszRange" for="tszAmount" oninput="tszAmount.value=tszRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="1.0" id="teapotSZAmount" name="tszAmount" for="tszRange" oninput="tszRange.value=tszAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+						</div>
+						<div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Rotation</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetTeapotRotation()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetTeapotRotation() {
+					    			document.getElementById("teapotRX").value = 0;
+					    			document.getElementById("teapotRY").value = 0.03;
+					    			document.getElementById("teapotRZ").value = 0;
+					    			document.getElementById("teapotRXAmount").value = 0;
+					    			document.getElementById("teapotRYAmount").value = 0.03;
+					    			document.getElementById("teapotRZAmount").value = 0;
+					    			modelAngleX[0] = 0;
+					    			modelAngleY[0] = 0;
+					    			modelAngleZ[0] = 0;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0" id="teapotRX" name="trxRange" for="trxAmount" oninput="trxAmount.value=trxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="teapotRXAmount" name="trxAmount" for="trxRange" oninput="trxRange.value=trxAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0.03" id="teapotRY" name="tryRange" for="tryAmount" oninput="tryAmount.value=tryRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0.03" id="teapotRYAmount" name="tryAmount" for="tryRange" oninput="tryRange.value=tryAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0" id="teapotRZ" name="trzRange" for="trzAmount" oninput="trzAmount.value=trzRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="teapotRZAmount" name="trzAmount" for="trzRange" oninput="trzRange.value=trzAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+						</div>
+		        	</div>
+		    	</div>
+		    	<div id="csie" class="tab-pane fade">
+			        <div class="container-fluid" style="margin-bottom: 30px;">
+			        	<h3>CSIE</h3>
+		        		<br/>
+		        		<div class="row">
+		        		<div class="col-lg-2">
+					    	<h5>Shading</h5>
+						</div>
+						<div class="col-lg-10">
+							<form>
+								<button type="button" id="csieShading1" class="btn btn-primary active" value="flat" onclick="ChangeCsieShading(this)">Flat</button>
+						    	<button type="button" id="csieShading2" class="btn btn-primary" value="gouraud" onclick="ChangeCsieShading(this)">Gouraud</button>
+						    	<button type="button" id="csieShading3" class="btn btn-primary" value="phong" onclick="ChangeCsieShading(this)">Phong</button>
+							</form>
+						</div>
+						</div>
+					    <br/>
+					    <div class="row">
+			            <div class="col-lg-2">
+					    	<h5 style="display: inline;">Material</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetCsieMaterial()">Reset</button>
+						</div>
+						<script type="text/javascript">
+				    		function ResetCsieMaterial() {
+				    			document.getElementById("csieMaterial").value = 32;
+				    			document.getElementById("csieMaterialAmount").value = 32;
+				    		}
+				    	</script>
+						<form>
+							<div class="col-lg-4" style="top: 12px;">
+					  			<input class="slider" type="range" min="1" max="100" value="32" id="csieMaterial" name="cmRange" for="cmAmount" oninput="cmAmount.value=cmRange.value" />
+					  		</div>
+					  		<div class="col-lg-5">
+								<input type="text" value="32" id="csieMaterialAmount" name="cmAmount" for="cmRange" oninput="cmRange.value=cmAmount.value" style="width: 30px;" />
+							</div>
+						</form>
+						</div>
+						</br>
+						<div class="row">
+						<div class="col-lg-2">
+					    	<h5 style="display: inline;">Shear</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetCsieShear()">Reset</button>
+						</div>
+						<script type="text/javascript">
+				    		function ResetCsieShear() {
+				    			document.getElementById("csieShear").value = 90;
+				    			document.getElementById("csieShearAmount").value = 90;
+				    			shear[1] = 90;
+				    		}
+				    	</script>
+						<form>
+							<div class="col-lg-4" style="top: 12px;">
+					  			<input class="slider" type="range" min="1" max="179" step="1" value="90" id="csieShear" name="cshRange" for="cshAmount" oninput="cshAmount.value=cshRange.value" />
+					  		</div>
+					  		<div class="col-lg-5">
+								<input type="text" value="90" id="csieShearAmount" name="cshAmount" for="cshRange" oninput="cshRange.value=cshAmount.value" style="width: 40px;" />
+							</div>
+						</form>
+						</div>
+				        <div class="col-lg-12"><HR></div>
+				        <div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Location</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetCsieLocation()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetCsieLocation() {
+					    			document.getElementById("csieX").value = -2;
+					    			document.getElementById("csieY").value = 0;
+					    			document.getElementById("csieZ").value = -40;
+					    			document.getElementById("csieXAmount").value = -2;
+					    			document.getElementById("csieYAmount").value = 0;
+					    			document.getElementById("csieZAmount").value = -40;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-90" max="90" value="-2" id="csieX" name="cxRange" for="cxAmount" oninput="cxAmount.value=cxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="-2" id="csieXAmount" name="cxAmount" for="cxRange" oninput="cxRange.value=cxAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-90" max="90" value="0" id="csieY" name="cyRange" for="cyAmount" oninput="cyAmount.value=cyRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="csieYAmount" name="cyAmount" for="cyRange" oninput="cyRange.value=cyAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-100" max="-10" value="-40" id="csieZ" name="czRange" for="czAmount" oninput="czAmount.value=czRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="-40" id="csieZAmount" name="czAmount" for="czRange" oninput="czRange.value=czAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+						</div>
+						<div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Scale</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetCsieScale()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetCsieScale() {
+					    			document.getElementById("csieSX").value = 10.0;
+					    			document.getElementById("csieSY").value = 10.0;
+					    			document.getElementById("csieSZ").value = 10.0;
+					    			document.getElementById("csieSXAmount").value = 10.0;
+					    			document.getElementById("csieSYAmount").value = 10.0;
+					    			document.getElementById("csieSZAmount").value = 10.0;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="10.0" id="csieSX" name="csxRange" for="csxAmount" oninput="csxAmount.value=csxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="10.0" id="csieSXAmount" name="csxAmount" for="csxRange" oninput="csxRange.value=csxAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="10.0" id="csieSY" name="csyRange" for="csyAmount" oninput="csyAmount.value=csyRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="10.0" id="csieSYAmount" name="csyAmount" for="csyRange" oninput="csyRange.value=csyAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="10.0" id="csieSZ" name="cszRange" for="cszAmount" oninput="cszAmount.value=cszRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="10.0" id="csieSZAmount" name="cszAmount" for="cszRange" oninput="cszRange.value=cszAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+						</div>
+						<div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Rotation</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetCsieRotation()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetCsieRotation() {
+					    			document.getElementById("csieRX").value = 0.03;
+					    			document.getElementById("csieRY").value = 0;
+					    			document.getElementById("csieRZ").value = 0;
+					    			document.getElementById("csieRXAmount").value = 0.03;
+					    			document.getElementById("csieRYAmount").value = 0;
+					    			document.getElementById("csieRZAmount").value = 0;
+					    			modelAngleX[1] = 0;
+					    			modelAngleY[1] = 0;
+					    			modelAngleZ[1] = 0;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0.03" id="csieRX" name="crxRange" for="crxAmount" oninput="crxAmount.value=crxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0.03" id="csieRXAmount" name="crxAmount" for="crxRange" oninput="crxRange.value=crxAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0" id="csieRY" name="cryRange" for="cryAmount" oninput="cryAmount.value=cryRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="csieRYAmount" name="cryAmount" for="cryRange" oninput="cryRange.value=cryAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0" id="csieRZ" name="crzRange" for="crzAmount" oninput="crzAmount.value=crzRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="csieRZAmount" name="crzAmount" for="crzRange" oninput="crzRange.value=crzAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+						</div>
+		        	</div>
+			    </div>
+			    <div id="kangaroo" class="tab-pane fade">
+			        <div class="container-fluid" style="margin-bottom: 30px;">
+			        	<h3>Kangaroo</h3>
+		        		<br/>
+		        		<div class="row">
+		        		<div class="col-lg-2">
+					    	<h5>Shading</h5>
+						</div>
+						<div class="col-lg-10">
+							<form>
+								<button type="button" id="kangarooShading1" class="btn btn-primary active" value="flat" onclick="ChangeKangarooShading(this)">Flat</button>
+						    	<button type="button" id="kangarooShading2" class="btn btn-primary" value="gouraud" onclick="ChangeKangarooShading(this)">Gouraud</button>
+						    	<button type="button" id="kangarooShading3" class="btn btn-primary" value="phong" onclick="ChangeKangarooShading(this)">Phong</button>
+							</form>
+						</div>
+						</div>
+					    <br/>
+					    <div class="row">
+			            <div class="col-lg-2">
+					    	<h5 style="display: inline;">Material</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetKangarooMaterial()">Reset</button>
+						</div>
+						<script type="text/javascript">
+				    		function ResetKangarooMaterial() {
+				    			document.getElementById("kangarooMaterial").value = 32;
+				    			document.getElementById("kangarooMaterialAmount").value = 32;
+				    		}
+				    	</script>
+						<form>
+							<div class="col-lg-4" style="top: 12px;">
+					  			<input class="slider" type="range" min="1" max="100" value="32" id="kangarooMaterial" name="kmRange" for="kmAmount" oninput="kmAmount.value=kmRange.value" />
+					  		</div>
+					  		<div class="col-lg-5">
+								<input type="text" value="32" id="kangarooMaterialAmount" name="kmAmount" for="kmRange" oninput="kmRange.value=kmAmount.value" style="width: 30px;" />
+							</div>
+						</form>
+						</div>
+						</br>
+						<div class="row">
+						<div class="col-lg-2">
+					    	<h5 style="display: inline;">Shear</h5>
+					    	<button class="btn btn-default" type="button" onclick="ResetKangarooShear()">Reset</button>
+						</div>
+						<script type="text/javascript">
+				    		function ResetKangarooShear() {
+				    			document.getElementById("kangarooShear").value = 90;
+				    			document.getElementById("kangarooShearAmount").value = 90;
+				    			shear[2] = 90;
+				    		}
+				    	</script>
+						<form>
+							<div class="col-lg-4" style="top: 12px;">
+					  			<input class="slider" type="range" min="1" max="179" step="1" value="90" id="kangarooShear" name="kshRange" for="kshAmount" oninput="kshAmount.value=kshRange.value" />
+					  		</div>
+					  		<div class="col-lg-5">
+								<input type="text" value="90" id="kangarooShearAmount" name="kshAmount" for="kshRange" oninput="kshRange.value=kshAmount.value" style="width: 40px;" />
+							</div>
+						</form>
+						</div>
+				        <div class="col-lg-12"><HR></div>
+				        <div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Location</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetKangarooLocation()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetKangarooLocation() {
+					    			document.getElementById("kangarooX").value = 40;
+					    			document.getElementById("kangarooY").value = 0;
+					    			document.getElementById("kangarooZ").value = -60;
+					    			document.getElementById("kangarooXAmount").value = 40;
+					    			document.getElementById("kangarooYAmount").value = 0;
+					    			document.getElementById("kangarooZAmount").value = -60;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-90" max="90" value="40" id="kangarooX" name="kxRange" for="kxAmount" oninput="kxAmount.value=kxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="40" id="kangarooXAmount" name="kxAmount" for="kxRange" oninput="kxRange.value=kxAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-90" max="90" value="0" id="kangarooY" name="kyRange" for="kyAmount" oninput="kyAmount.value=kyRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="kangarooYAmount" name="kyAmount" for="kyRange" oninput="kyRange.value=kyAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-100" max="-10" value="-60" id="kangarooZ" name="kzRange" for="kzAmount" oninput="kzAmount.value=kzRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="-60" id="kangarooZAmount" name="kzAmount" for="kzRange" oninput="kzRange.value=kzAmount.value" style="width: 30px;" />
+								</div>
+							</form></div>
+						</div>
+						<div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Scale</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetKangarooScale()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetKangarooScale() {
+					    			document.getElementById("kangarooSX").value = 10.0;
+					    			document.getElementById("kangarooSY").value = 10.0;
+					    			document.getElementById("kangarooSZ").value = 10.0;
+					    			document.getElementById("kangarooSXAmount").value = 10.0;
+					    			document.getElementById("kangarooSYAmount").value = 10.0;
+					    			document.getElementById("kangarooSZAmount").value = 10.0;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="10.0" id="kangarooSX" name="ksxRange" for="ksxAmount" oninput="ksxAmount.value=ksxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="10.0" id="kangarooSXAmount" name="ksxAmount" for="ksxRange" oninput="ksxRange.value=ksxAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="10.0" id="kangarooSY" name="ksyRange" for="ksyAmount" oninput="ksyAmount.value=ksyRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="10.0" id="kangarooSYAmount" name="ksyAmount" for="ksyRange" oninput="ksyRange.value=ksyAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="0.1" max="10" step="0.01" value="10.0" id="kangarooSZ" name="kszRange" for="kszAmount" oninput="kszAmount.value=kszRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="10.0" id="kangarooSZAmount" name="kszAmount" for="kszRange" oninput="kszRange.value=kszAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+						</div>
+						<div class="col-lg-4">
+					    	<div>
+					    		<h5 style="display: inline-block;">Rotation</h5>
+						    	<button class="btn btn-default" type="button" onclick="ResetKangarooRotation()">Reset</button>
+					    	</div>
+					    	<script type="text/javascript">
+					    		function ResetKangarooRotation() {
+					    			document.getElementById("kangarooRX").value = 0.03;
+					    			document.getElementById("kangarooRY").value = 0;
+					    			document.getElementById("kangarooRZ").value = 0;
+					    			document.getElementById("kangarooRXAmount").value = 0.03;
+					    			document.getElementById("kangarooRYAmount").value = 0;
+					    			document.getElementById("kangarooRZAmount").value = 0;
+					    			modelAngleX[2] = 0;
+					    			modelAngleY[2] = 0;
+					    			modelAngleZ[2] = 0;
+					    		}
+					    	</script>
+						    <div><form>
+						    	<div class="col-lg-1">X:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0.03" id="kangarooRX" name="krxRange" for="krxAmount" oninput="krxAmount.value=krxRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0.03" id="kangarooRXAmount" name="krxAmount" for="krxRange" oninput="krxRange.value=krxAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Y:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0" id="kangarooRY" name="kryRange" for="kryAmount" oninput="kryAmount.value=kryRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="kangarooRYAmount" name="kryAmount" for="kryRange" oninput="kryRange.value=kryAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+							<div><form>
+								<div class="col-lg-1">Z:</div>
+								<div class="col-lg-7" style="top: 12px;">
+						  			<input class="slider" type="range" min="-0.1" max="0.1" step="0.01" value="0" id="kangarooRZ" name="krzRange" for="krzAmount" oninput="krzAmount.value=krzRange.value" />
+						  		</div>
+						  		<div class="col-lg-4">
+									<input type="text" value="0" id="kangarooRZAmount" name="krzAmount" for="krzRange" oninput="krzRange.value=krzAmount.value" style="width: 40px;" />
+								</div>
+							</form></div>
+						</div>
+		        	</div>
+			    </div>
+			</div>
+		</div>
+	</div>
+	</div>
+
+</body>
+
+</html>
